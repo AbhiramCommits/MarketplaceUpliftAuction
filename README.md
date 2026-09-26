@@ -28,6 +28,8 @@ uv run python -m mua.cli generate                 # full ~2M rows (seed 42)
 uv run python -m mua.cli features                 # join, encode, time-split
 uv run python -m mua.cli train-ranker             # train + calibrate the CTR ranker
 uv run python -m mua.cli score                    # batch-score splits -> data/scored/
+uv run python -m mua.cli causal --estimator all   # causal pipeline + ground-truth eval
+uv run python -m mua.cli refute                   # DoWhy refutation battery
 ```
 
 ## CTR ranker
@@ -52,6 +54,26 @@ uv run python -m mua.cli score                    # batch-score splits -> data/s
 
 Quality targets (checked and printed in the run summary): test ROC-AUC >= 0.70,
 post-calibration test ECE <= 0.02.
+
+## Causal inference
+
+`src/mua/causal/` estimates the incremental order rate of the promo and proves the
+estimate survives confounding checks. `data/truth/` is used only for evaluation.
+
+- `propensity.py` - gradient-boosted propensity model: AUC, overlap histogram,
+  [0.02, 0.98] trimming, SMD for every covariate before/after IPTW, Love plot.
+  Fails loudly if any post-weighting |SMD| >= 0.1.
+- `estimators.py` - naive diff-in-means, stabilized IPTW, S/T/X-learners, DRLearner,
+  and honest CausalForestDML, each with ATE + 95% CI and per-unit CATE. SHAP summary
+  for the T-learner.
+- `evaluate.py` - ATE bias + CI coverage, PEHE vs `true_tau`, Qini/AUUC, uplift-by-
+  decile tables, `reports/figures/qini.png` + `uplift_deciles.png`, leaderboard
+  (`reports/leaderboard.md` + CSV).
+- `refute.py` - DoWhy DAG (saved as DOT), backdoor estimate, placebo / random common
+  cause / data-subset refuters with pass/fail verdicts, E-value sensitivity ->
+  `reports/refutation_report.md`.
+- `policy.py` - top-k% targeting curve (incremental orders per promo dollar) vs
+  random and treat-everyone baselines -> `reports/figures/policy_curve.png`.
 
 ## Data layout
 

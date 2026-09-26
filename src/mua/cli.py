@@ -11,7 +11,7 @@ from mua.config import load_config
 
 logger = logging.getLogger("mua")
 
-STUB_COMMANDS = ("causal", "auction", "report")
+STUB_COMMANDS = ("auction", "report")
 
 
 def _run_generate(args: argparse.Namespace) -> int:
@@ -57,6 +57,22 @@ def _run_score(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_causal(args: argparse.Namespace) -> int:
+    from mua.causal.run import run
+
+    cfg = load_config(args.config)
+    _, ok = run(cfg, selected=args.estimator)
+    return 0 if ok else 1
+
+
+def _run_refute(args: argparse.Namespace) -> int:
+    from mua.causal.refute import run
+
+    cfg = load_config(args.config)
+    result = run(cfg)
+    return 0 if result["ok"] else 1
+
+
 def _stub(name: str) -> Callable[[argparse.Namespace], int]:
     def _run(args: argparse.Namespace) -> int:
         logger.warning("%s: not implemented yet", name)
@@ -93,6 +109,22 @@ def build_parser() -> argparse.ArgumentParser:
     score = sub.add_parser("score", help="Batch-score splits and write pctr to data/scored/")
     score.add_argument("--config", default="configs/ranker.yaml")
     score.set_defaults(func=_run_score)
+
+    causal = sub.add_parser(
+        "causal", help="Fit and evaluate ATE/CATE estimators against ground truth"
+    )
+    causal.add_argument("--config", default="configs/causal.yaml")
+    causal.add_argument(
+        "--estimator",
+        default="all",
+        choices=["all", "naive", "iptw", "s", "t", "x", "dr", "forest"],
+        help="Which estimator(s) to fit (default: all)",
+    )
+    causal.set_defaults(func=_run_causal)
+
+    refute = sub.add_parser("refute", help="Run the DoWhy refutation battery")
+    refute.add_argument("--config", default="configs/causal.yaml")
+    refute.set_defaults(func=_run_refute)
 
     for name in STUB_COMMANDS:
         stub = sub.add_parser(name, help=f"Placeholder for the {name} stage")

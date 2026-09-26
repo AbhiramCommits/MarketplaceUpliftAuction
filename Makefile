@@ -27,10 +27,13 @@ score:
 causal:
 	uv run python -m mua.cli causal
 
+refute:
+	uv run python -m mua.cli refute
+
 auction:
 	uv run python -m mua.cli auction
 
 report:
 	uv run python -m mua.cli report
 
-all: setup lint test data train score causal auction report
+all: setup lint test data train score causal refute auction report

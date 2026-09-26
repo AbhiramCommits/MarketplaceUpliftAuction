@@ -1,0 +1,38 @@
+digraph causal_dag {
+  promo_treated -> ordered;
+  merchant_id -> promo_treated; merchant_id -> ordered;
+  consumer_id -> promo_treated; consumer_id -> ordered;
+  hour_of_day -> promo_treated; hour_of_day -> ordered;
+  day_of_week -> promo_treated; day_of_week -> ordered;
+  is_peak -> promo_treated; is_peak -> ordered;
+  slate_rank -> promo_treated; slate_rank -> ordered;
+  consumer_merchant_distance_km -> promo_treated; consumer_merchant_distance_km -> ordered;
+  current_dasher_supply_ratio -> promo_treated; current_dasher_supply_ratio -> ordered;
+  estimated_delivery_time_min -> promo_treated; estimated_delivery_time_min -> ordered;
+  price_sensitivity -> promo_treated; price_sensitivity -> ordered;
+  order_frequency_prior -> promo_treated; order_frequency_prior -> ordered;
+  distance_tolerance_km -> promo_treated; distance_tolerance_km -> ordered;
+  is_new_user -> promo_treated; is_new_user -> ordered;
+  tenure_days -> promo_treated; tenure_days -> ordered;
+  consumer_x_km -> promo_treated; consumer_x_km -> ordered;
+  consumer_y_km -> promo_treated; consumer_y_km -> ordered;
+  avg_rating -> promo_treated; avg_rating -> ordered;
+  avg_prep_time_min -> promo_treated; avg_prep_time_min -> ordered;
+  price_tier -> promo_treated; price_tier -> ordered;
+  historical_ctr -> promo_treated; historical_ctr -> ordered;
+  is_ads_advertiser -> promo_treated; is_ads_advertiser -> ordered;
+  merchant_x_km -> promo_treated; merchant_x_km -> ordered;
+  merchant_y_km -> promo_treated; merchant_y_km -> ordered;
+  cuisine_american -> promo_treated; cuisine_american -> ordered;
+  cuisine_burgers -> promo_treated; cuisine_burgers -> ordered;
+  cuisine_chinese -> promo_treated; cuisine_chinese -> ordered;
+  cuisine_dessert -> promo_treated; cuisine_dessert -> ordered;
+  cuisine_indian -> promo_treated; cuisine_indian -> ordered;
+  cuisine_italian -> promo_treated; cuisine_italian -> ordered;
+  cuisine_korean -> promo_treated; cuisine_korean -> ordered;
+  cuisine_mexican -> promo_treated; cuisine_mexican -> ordered;
+  cuisine_pizza -> promo_treated; cuisine_pizza -> ordered;
+  cuisine_sushi -> promo_treated; cuisine_sushi -> ordered;
+  cuisine_thai -> promo_treated; cuisine_thai -> ordered;
+  cuisine_vietnamese -> promo_treated; cuisine_vietnamese -> ordered;
+}

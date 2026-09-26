@@ -1,0 +1,41 @@
+# Causal inference configuration. Ground truth (data/truth/) is used only for
+# evaluation; model fitting never touches it.
+paths:
+  processed: data/processed
+  truth: data/truth
+  artifacts: artifacts/causal
+  figures: reports/figures
+
+data:
+  sample_train: 150000
+  sample_test: 100000
+  sample_refute: 50000
+  seed: 42
+
+propensity:
+  n_estimators: 300
+  trim_low: 0.02
+  trim_high: 0.98
+  smd_threshold: 0.1
+
+estimators:
+  # HistGradientBoosting (sklearn) is the default: LightGBM 4.x intermittently
+  # segfaults on Apple Silicon; set "lightgbm" to opt in (SHAP then runs too).
+  base: histgb
+  bootstrap_samples: 200
+  dr_cv: 5
+  forest_estimators: 100
+  forest_max_depth: 3
+  forest_min_samples_leaf: 20
+
+evaluate:
+  n_deciles: 10
+
+refute:
+  placebo_iterations: 100
+  subset_fractions: [0.8, 0.9]
+  effect_shift_tolerance: 0.20
+  placebo_pvalue_threshold: 0.05
+
+policy:
+  ks: [5, 10, 20, 30, 50, 100]
