@@ -1,0 +1,68 @@
+# CTR ranker configuration.
+paths:
+  processed: data/processed
+  scored: data/scored
+  ranker_artifacts: artifacts/ranker
+  figures: reports/figures
+
+data:
+  label: clicked
+  in_memory: false
+  batch_size: 4096
+  categorical:
+    consumer_id: {vocab_size: 65536, embedding_dim: 32, hash_buckets: 65536}
+    merchant_id: {vocab_size: 8192, embedding_dim: 16, hash_buckets: 8192}
+    cuisine: {vocab_size: 12, embedding_dim: 8}
+    hour_of_day: {vocab_size: 24, embedding_dim: 8}
+    day_of_week: {vocab_size: 7, embedding_dim: 4}
+    price_tier: {vocab_size: 4, embedding_dim: 4, offset: 1}
+  numeric:
+    - consumer_merchant_distance_km
+    - current_dasher_supply_ratio
+    - estimated_delivery_time_min
+    - is_peak
+    - price_sensitivity
+    - order_frequency_prior
+    - distance_tolerance_km
+    - is_new_user
+    - tenure_days
+    - avg_rating
+    - avg_prep_time_min
+    - historical_ctr
+    - is_ads_advertiser
+    - consumer_x_km
+    - consumer_y_km
+    - merchant_x_km
+    - merchant_y_km
+  bias:
+    feature: slate_rank
+    vocab_size: 21  # ranks 1..20 plus bucket 0 = neutral (used only if bias kept at inference)
+    embedding_dim: 4
+
+model:
+  mlp_hidden: [256, 128, 64]
+  dropout: 0.2
+
+training:
+  epochs: 15
+  learning_rate: 1.0e-3
+  weight_decay: 1.0e-5
+  warmup_epochs: 1
+  lr_min_ratio: 0.05
+  grad_clip_norm: 5.0
+  patience: 3
+  seed: 42
+  mlflow_enabled: true
+  mlflow_experiment: ctr_ranker
+  mlflow_tracking_uri: artifacts/mlruns
+
+calibration:
+  n_bins: 10
+
+scoring:
+  splits: [train, valid, test]
+  batch_size: 8192
+
+targets:
+  test_roc_auc: 0.70
+  test_ece: 0.02

@@ -11,10 +11,10 @@ from mua.config import load_config
 
 logger = logging.getLogger("mua")
 
-STUB_COMMANDS = ("train", "causal", "auction", "report")
+STUB_COMMANDS = ("causal", "auction", "report")
 
 
-def _run_generate(args: argparse.Namespace) -> None:
+def _run_generate(args: argparse.Namespace) -> int:
     from mua.sim.generate import run
 
     cfg = load_config(args.config)
@@ -26,18 +26,41 @@ def _run_generate(args: argparse.Namespace) -> None:
     if args.rows is not None:
         cfg["target_rows"] = args.rows
     run(cfg)
+    return 0
 
 
-def _run_features(args: argparse.Namespace) -> None:
+def _run_features(args: argparse.Namespace) -> int:
     from mua.features.build import build
 
     cfg = load_config(args.config)
     build(cfg)
+    return 0
 
 
-def _stub(name: str) -> Callable[[argparse.Namespace], None]:
-    def _run(args: argparse.Namespace) -> None:
+def _run_train_ranker(args: argparse.Namespace) -> int:
+    from mua.ranker.train import run
+
+    cfg = load_config(args.config)
+    if args.epochs is not None:
+        cfg["training"]["epochs"] = args.epochs
+    if args.in_memory:
+        cfg["data"]["in_memory"] = True
+    _, ok = run(cfg)
+    return 0 if ok else 1
+
+
+def _run_score(args: argparse.Namespace) -> int:
+    from mua.ranker.predict import run
+
+    cfg = load_config(args.config)
+    run(cfg)
+    return 0
+
+
+def _stub(name: str) -> Callable[[argparse.Namespace], int]:
+    def _run(args: argparse.Namespace) -> int:
         logger.warning("%s: not implemented yet", name)
+        return 0
 
     return _run
 
@@ -61,6 +84,16 @@ def build_parser() -> argparse.ArgumentParser:
     feat.add_argument("--config", default="configs/features.yaml")
     feat.set_defaults(func=_run_features)
 
+    rank = sub.add_parser("train-ranker", help="Train + calibrate the CTR ranker")
+    rank.add_argument("--config", default="configs/ranker.yaml")
+    rank.add_argument("--epochs", type=int, default=None, help="Override training epochs")
+    rank.add_argument("--in-memory", action="store_true", help="Load datasets in memory")
+    rank.set_defaults(func=_run_train_ranker)
+
+    score = sub.add_parser("score", help="Batch-score splits and write pctr to data/scored/")
+    score.add_argument("--config", default="configs/ranker.yaml")
+    score.set_defaults(func=_run_score)
+
     for name in STUB_COMMANDS:
         stub = sub.add_parser(name, help=f"Placeholder for the {name} stage")
         stub.set_defaults(func=_stub(name))
@@ -73,8 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s"
     )
     args = build_parser().parse_args(argv)
-    args.func(args)
-    return 0
+    return args.func(args)
 
 
 if __name__ == "__main__":

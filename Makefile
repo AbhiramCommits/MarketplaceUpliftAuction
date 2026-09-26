@@ -19,7 +19,10 @@ data:
 	uv run python -m mua.cli features
 
 train:
-	uv run python -m mua.cli train
+	uv run python -m mua.cli train-ranker
+
+score:
+	uv run python -m mua.cli score
 
 causal:
 	uv run python -m mua.cli causal
@@ -30,4 +33,4 @@ auction:
 report:
 	uv run python -m mua.cli report
 
-all: setup lint test data train causal auction report
+all: setup lint test data train score causal auction report

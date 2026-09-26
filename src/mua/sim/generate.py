@@ -168,7 +168,7 @@ def click_probability(features: dict[str, Any]) -> np.ndarray:
     rank = _col(features, "slate_rank")
     peak = _col(features, "is_peak")
 
-    relevance = (1.0 + 0.35 * np.clip((tol - dist) / 6.0, -1.0, 1.0)) * (1.0 + 0.08 * peak)
+    relevance = (1.0 + 0.55 * np.clip((tol - dist) / 6.0, -1.0, 1.0)) * (1.0 + 0.10 * peak)
     position_bias = 1.0 / np.log2(rank + 1.0)
     return np.clip(ctr * relevance * position_bias, 0.0, 0.5)
 
@@ -209,7 +209,9 @@ def generate_merchants(
             .round(1)
             .astype(np.float32),
             "price_tier": tier,
-            "historical_ctr": np.clip(rng.beta(3.0, 40.0, size=n), 0.01, 0.20).astype(np.float32),
+            "historical_ctr": np.clip(rng.lognormal(-2.8, 0.9, size=n), 0.01, 0.40).astype(
+                np.float32
+            ),
             "is_ads_advertiser": (rng.random(n) < 0.20).astype(np.int32),
             "merchant_x_km": rng.uniform(0.0, city_size_km, size=n).astype(np.float32),
             "merchant_y_km": rng.uniform(0.0, city_size_km, size=n).astype(np.float32),

@@ -223,7 +223,7 @@ class TestDimensions:
         assert set(merchants["cuisine_category"].unique()) == set(CUISINES)
         assert ((merchants["avg_rating"] >= 2.5) & (merchants["avg_rating"] <= 5.0)).all()
         assert set(merchants["price_tier"].unique()) == {1, 2, 3, 4}
-        assert ((merchants["historical_ctr"] >= 0.01) & (merchants["historical_ctr"] <= 0.20)).all()
+        assert ((merchants["historical_ctr"] >= 0.01) & (merchants["historical_ctr"] <= 0.40)).all()
         assert abs(merchants["is_ads_advertiser"].mean() - 0.20) < 0.02
 
     def test_dashers(self):
