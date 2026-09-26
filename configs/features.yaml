@@ -1,0 +1,12 @@
+# Feature engineering configuration.
+paths:
+  impressions: data/raw/impressions
+  consumers: data/raw/consumers
+  merchants: data/raw/merchants
+  processed: data/processed
+
+# Time-based split, never random: train 1-21, valid 22-25, test 26-30.
+split:
+  train: [1, 21]
+  valid: [22, 25]
+  test: [26, 30]
