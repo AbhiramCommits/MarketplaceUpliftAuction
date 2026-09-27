@@ -11,7 +11,7 @@ from mua.config import load_config
 
 logger = logging.getLogger("mua")
 
-STUB_COMMANDS = ("report",)
+STUB_COMMANDS: tuple[str, ...] = ()
 
 
 def _run_generate(args: argparse.Namespace) -> int:
@@ -85,6 +85,22 @@ def _run_auction(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_experiment(args: argparse.Namespace) -> int:
+    from mua.reporting.experiment import run
+
+    cfg = load_config(args.config)
+    run(cfg, scale=args.scale)
+    return 0
+
+
+def _run_report(args: argparse.Namespace) -> int:
+    from mua.reporting.report import run
+
+    cfg = load_config(args.config)
+    run(cfg, scale=args.scale)
+    return 0
+
+
 def _stub(name: str) -> Callable[[argparse.Namespace], int]:
     def _run(args: argparse.Namespace) -> int:
         logger.warning("%s: not implemented yet", name)
@@ -148,6 +164,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     auction.add_argument("--rounds", type=int, default=None, help="Number of auction rounds")
     auction.set_defaults(func=_run_auction)
+
+    experiment = sub.add_parser(
+        "experiment", help="Run the mechanism x targeting policy experiment grid"
+    )
+    experiment.add_argument("--config", default="configs/experiment.yaml")
+    experiment.add_argument("--scale", choices=["full", "small"], default="full")
+    experiment.set_defaults(func=_run_experiment)
+
+    report = sub.add_parser("report", help="Generate reports/REPORT.md")
+    report.add_argument("--config", default="configs/experiment.yaml")
+    report.add_argument("--scale", choices=["full", "small"], default="full")
+    report.set_defaults(func=_run_report)
 
     for name in STUB_COMMANDS:
         stub = sub.add_parser(name, help=f"Placeholder for the {name} stage")

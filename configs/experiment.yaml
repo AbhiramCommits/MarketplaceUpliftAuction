@@ -1,0 +1,41 @@
+# Experiment harness configuration: auction mechanism x promo targeting policy.
+paths:
+  scored: data/scored
+  figures: reports/figures
+  results: reports/results.csv
+  report: reports/REPORT.md
+
+causal:
+  # Matches configs/causal.yaml: the causal test sample defines the promo session
+  # pool (CATE and propensity predictions are aligned to it).
+  paths:
+    processed: data/processed
+    truth: data/truth
+  artifacts: artifacts/causal
+  sample: 100000
+  seed: 42
+  best_cate: auto   # auto = leaderboard rank 1 (best PEHE); or x|dr|forest|...
+
+auction:
+  # Mirrors configs/auction.yaml; `mechanism` is overridden per cell.
+  mechanism: gsp
+  slate_size: 20
+  slot_positions: [1, 2, 3]
+  reserve: 0.5
+  agent_mix:
+    truthful: 0.4
+    shading: 0.2
+    paced: 0.3
+    random: 0.1
+  shading: {initial: 0.8, step: 0.02, min: 0.3, max: 1.0}
+  pacing: {learning_rate: 0.3, lam_max: 10.0, budget_ratio: 0.5}
+
+experiment:
+  mechanisms: [first_price, second_price, gsp, vcg]
+  policies: [treat_none, treat_all, random_k, uplift_top_k, propensity_top_k]
+  seeds: [1, 2, 3, 4, 5]
+  rounds_per_cell: 20000
+  top_k_pct: 20
+  small:
+    rounds_per_cell: 3000
+    seeds: [1, 2, 3]

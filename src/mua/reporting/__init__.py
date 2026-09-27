@@ -1,1 +1,1 @@
-"""Reporting and evaluation artifacts."""
+"""Reporting: experiment harness, figures, and the final report."""
