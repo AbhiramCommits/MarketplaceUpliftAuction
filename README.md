@@ -30,6 +30,7 @@ uv run python -m mua.cli train-ranker             # train + calibrate the CTR ra
 uv run python -m mua.cli score                    # batch-score splits -> data/scored/
 uv run python -m mua.cli causal --estimator all   # causal pipeline + ground-truth eval
 uv run python -m mua.cli refute                   # DoWhy refutation battery
+uv run python -m mua.cli auction --mechanism gsp --rounds 200000   # ads auction sim
 ```
 
 ## CTR ranker
@@ -74,6 +75,26 @@ estimate survives confounding checks. `data/truth/` is used only for evaluation.
   `reports/refutation_report.md`.
 - `policy.py` - top-k% targeting curve (incremental orders per promo dollar) vs
   random and treat-everyone baselines -> `reports/figures/policy_curve.png`.
+
+## Ads auction
+
+`src/mua/auction/` allocates sponsored slots on the merchant slate using the
+calibrated pCTR from the ranker:
+
+- `types.py` - `Bid`, `Advertiser`, `AuctionRequest`, `Allocation`, `AuctionOutcome`
+- `mechanisms.py` - FirstPrice, SecondPrice (Vickrey), GSP (quality-adjusted
+  next-price), VCG (externality payments); eCPM ranking, reserve price, configurable
+  sponsored slots (max 3 of 20)
+- `agents.py` - Truthful, Shading (multiplicative-weights for first-price),
+  BudgetPaced (dual-variable lambda throttling toward daily budget), Random
+- `simulator.py` - N rounds sampled from the scored test log; tracks per-advertiser
+  spend/utilization/clicks/conversions/surplus and platform revenue/RPM/fill
+  rate/ads position/organic displacement; per-round outcomes -> 
+  `data/auction_runs/<run_id>/`
+
+Incentive properties are verified empirically in `tests/test_incentives.py`:
+truthful bidding is dominant in second-price/VCG (deviation grid), and truthful
+bidding is provably beatable in first-price by shading.
 
 ## Data layout
 

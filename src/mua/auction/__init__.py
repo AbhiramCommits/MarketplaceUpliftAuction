@@ -1,1 +1,1 @@
-"""Auction simulation and pricing."""
+"""Ads auction layer: mechanisms, bidding agents, and repeated-auction simulation."""

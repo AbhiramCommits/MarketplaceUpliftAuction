@@ -11,7 +11,7 @@ from mua.config import load_config
 
 logger = logging.getLogger("mua")
 
-STUB_COMMANDS = ("auction", "report")
+STUB_COMMANDS = ("report",)
 
 
 def _run_generate(args: argparse.Namespace) -> int:
@@ -73,6 +73,18 @@ def _run_refute(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
+def _run_auction(args: argparse.Namespace) -> int:
+    from mua.auction.simulator import run
+
+    cfg = load_config(args.config)
+    if args.mechanism is not None:
+        cfg["auction"]["mechanism"] = args.mechanism
+    if args.rounds is not None:
+        cfg["auction"]["rounds"] = args.rounds
+    run(cfg)
+    return 0
+
+
 def _stub(name: str) -> Callable[[argparse.Namespace], int]:
     def _run(args: argparse.Namespace) -> int:
         logger.warning("%s: not implemented yet", name)
@@ -125,6 +137,17 @@ def build_parser() -> argparse.ArgumentParser:
     refute = sub.add_parser("refute", help="Run the DoWhy refutation battery")
     refute.add_argument("--config", default="configs/causal.yaml")
     refute.set_defaults(func=_run_refute)
+
+    auction = sub.add_parser("auction", help="Simulate the ads auction")
+    auction.add_argument("--config", default="configs/auction.yaml")
+    auction.add_argument(
+        "--mechanism",
+        choices=["first_price", "second_price", "gsp", "vcg"],
+        default=None,
+        help="Auction mechanism (default: config value)",
+    )
+    auction.add_argument("--rounds", type=int, default=None, help="Number of auction rounds")
+    auction.set_defaults(func=_run_auction)
 
     for name in STUB_COMMANDS:
         stub = sub.add_parser(name, help=f"Placeholder for the {name} stage")
