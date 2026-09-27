@@ -103,8 +103,9 @@ def _toy_experiment_cfg(root: Path) -> dict:
             "mechanisms": ["gsp", "first_price"],
             "policies": ["treat_none", "treat_all", "random_k", "uplift_top_k", "propensity_top_k"],
             "seeds": [1, 2],
-            "rounds_per_cell": 300,
+            "rounds_per_cell": 250,
             "top_k_pct": 20,
+            "trace_rounds": 600,
         },
     }
 

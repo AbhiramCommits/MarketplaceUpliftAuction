@@ -5,13 +5,10 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from collections.abc import Callable
 
 from mua.config import load_config
 
 logger = logging.getLogger("mua")
-
-STUB_COMMANDS: tuple[str, ...] = ()
 
 
 def _run_generate(args: argparse.Namespace) -> int:
@@ -101,14 +98,6 @@ def _run_report(args: argparse.Namespace) -> int:
     return 0
 
 
-def _stub(name: str) -> Callable[[argparse.Namespace], int]:
-    def _run(args: argparse.Namespace) -> int:
-        logger.warning("%s: not implemented yet", name)
-        return 0
-
-    return _run
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mua", description="Marketplace uplift modeling and auction pipeline"
@@ -176,10 +165,6 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--config", default="configs/experiment.yaml")
     report.add_argument("--scale", choices=["full", "small"], default="full")
     report.set_defaults(func=_run_report)
-
-    for name in STUB_COMMANDS:
-        stub = sub.add_parser(name, help=f"Placeholder for the {name} stage")
-        stub.set_defaults(func=_stub(name))
 
     return parser
 

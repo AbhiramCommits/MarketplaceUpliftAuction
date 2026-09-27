@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "marketplace-uplift-auction"
+abstract: >-
+  A simulated three-sided delivery marketplace (consumers, merchants, dashers) with a
+  confounded promo treatment and known ground-truth causal effects, built to develop
+  and benchmark uplift models, causal estimators, and ad auction mechanisms.
+authors:
+  - family-names: Kasireddi
+    given-names: Abhiram
+version: 0.1.0
+date-released: 2026-09-26
+license: MIT
+repository-code: "https://github.com/AbhiramCommits/MarketplaceUpliftAuction"
+keywords:
+  - uplift-modeling
+  - causal-inference
+  - ad-auctions
+  - simulation
+  - pyspark

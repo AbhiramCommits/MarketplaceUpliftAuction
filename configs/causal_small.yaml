@@ -1,0 +1,33 @@
+
+    paths:
+      processed: data/processed
+      truth: data/truth
+      artifacts: artifacts/causal
+      figures: reports/figures
+    data:
+      sample_train: null
+      sample_test: null
+      sample_refute: 4000
+      seed: 42
+    propensity:
+      n_estimators: 100
+      trim_low: 0.02
+      trim_high: 0.98
+      smd_threshold: 0.12
+    estimators:
+      base: histgb
+      bootstrap_samples: 30
+      dr_cv: 2
+      forest_estimators: 32
+      forest_max_depth: 2
+      forest_min_samples_leaf: 100
+    evaluate:
+      n_deciles: 10
+    refute:
+      placebo_iterations: 30
+      subset_fractions: [0.8, 0.9]
+      effect_shift_tolerance: 0.20
+      placebo_pvalue_threshold: 0.05
+    policy:
+      ks: [10, 50, 100]
+    

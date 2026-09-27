@@ -160,7 +160,8 @@ def _trace_auction(
 
 
 def _plot_pacing_traces(cfg: dict[str, Any]) -> Path:
-    trace = _trace_auction(cfg, "gsp", 1500, seed=7)
+    trace_rounds = int(cfg.get("experiment", {}).get("trace_rounds", 1500))
+    trace = _trace_auction(cfg, "gsp", trace_rounds, seed=7)
     pacing = trace["pacing"]
     if not pacing:
         raise RuntimeError("No paced agents in trace")
@@ -182,7 +183,8 @@ def _plot_pacing_traces(cfg: dict[str, Any]) -> Path:
 
 
 def _plot_shading_convergence(cfg: dict[str, Any]) -> Path:
-    trace = _trace_auction(cfg, "first_price", 1500, seed=7)
+    trace_rounds = int(cfg.get("experiment", {}).get("trace_rounds", 1500))
+    trace = _trace_auction(cfg, "first_price", trace_rounds, seed=7)
     shading = trace["shading"]
     if not shading:
         raise RuntimeError("No shading agents in trace")

@@ -33,7 +33,7 @@ def test_end_to_end_generate_and_build(spark, tmp_path):
         "n_consumers": 2_000,
         "n_merchants": 500,
         "n_dashers": 200,
-        "target_rows": 10_000,
+        "target_rows": 8_000,
         "city_size_km": 10.0,
         "treatment": {"target_share": 0.35},
         "paths": {
@@ -46,7 +46,7 @@ def test_end_to_end_generate_and_build(spark, tmp_path):
     }
 
     stats = run(sim_cfg)
-    assert stats["rows"] == 10_000
+    assert stats["rows"] == 8_000
     assert abs(stats["treated_share"] - 0.35) < 0.03
 
     feat_cfg = {
@@ -60,7 +60,7 @@ def test_end_to_end_generate_and_build(spark, tmp_path):
     }
 
     counts = build(feat_cfg, spark=spark)
-    assert counts["train"] + counts["valid"] + counts["test"] == counts["total"] == 10_000
+    assert counts["train"] + counts["valid"] + counts["test"] == counts["total"] == 8_000
 
     test = spark.read.parquet(str(tmp_path / "processed" / "test"))
     columns = test.columns

@@ -65,11 +65,11 @@ def _fmt(value: tuple[float, float]) -> str:
     return f"{mean:.4f} ± {std:.4f}"
 
 
-def _load_causal_assets(cfg: dict[str, Any]) -> tuple[str, str, str]:
+def _load_causal_assets(cfg: dict[str, Any]) -> tuple[str, str, str, str]:
     artifacts = resolve(cfg["causal"]["artifacts"])
     with (artifacts / "leaderboard.csv").open() as fh:
         leaderboard_rows = list(csv.DictReader(fh))
-    best = leaderboard_rows[0]["estimator"] if leaderboard_rows else "n/a"
+    best = str(leaderboard_rows[0]["estimator"]) if leaderboard_rows else "n/a"
     leaderboard_md = [
         "| estimator | ATE | ATE bias | covers truth | PEHE | Qini | AUUC |",
         "|---|---|---|---|---|---|---|",
@@ -100,7 +100,7 @@ def _findings(cells: list[dict[str, Any]], best_cate: str) -> list[str]:
         if values:
             candidates[policy] = float(np.mean(values))
     if candidates:
-        winner = max(candidates, key=candidates.get)
+        winner = max(candidates, key=lambda p: candidates[p])
         lines.append(
             f"- **Incremental conversions per promo dollar is maximized by `{winner}` "
             f"targeting**: {candidates[winner]:.4f} orders/$. For comparison: "
@@ -110,7 +110,7 @@ def _findings(cells: list[dict[str, Any]], best_cate: str) -> list[str]:
             + f". The CATE model behind `uplift_top_k` is `{best_cate}` (leaderboard "
             "rank 1 by PEHE)."
         )
-    mechanisms = {}
+    mechanisms: dict[str, dict[str, list[float]]] = {}
     for c in cells:
         mechanisms.setdefault(c["mechanism"], {"revenue": [], "surplus": [], "welfare": []})
         mechanisms[c["mechanism"]]["revenue"].append(c["revenue"][0])
@@ -127,7 +127,7 @@ def _findings(cells: list[dict[str, Any]], best_cate: str) -> list[str]:
             f"first-price is driven by shading agents, not by truthful bidding."
         )
         welfare_mean = {m: np.mean(mechanisms[m]["welfare"]) for m in mechanisms}
-        best_welfare = max(welfare_mean, key=welfare_mean.get)
+        best_welfare = max(welfare_mean, key=lambda m: welfare_mean[m])
         lines.append(
             f"- **Consumer welfare** (mean relevance of the shown slate) is highest under "
             f"`{best_welfare}` ({welfare_mean[best_welfare]:.4f}) and varies little across "
@@ -146,10 +146,9 @@ def _findings(cells: list[dict[str, Any]], best_cate: str) -> list[str]:
 
 
 def run(cfg: dict[str, Any], scale: str = "full") -> Path:
-    results_path = resolve(cfg["paths"]["results"])
-    if not results_path.exists():
-        logger.info("results.csv missing; running the experiment harness")
-        experiment.run(cfg, scale=scale)
+    # Always rerun the experiment so the report is reproducible from scratch
+    # (deterministic given seed 42).
+    experiment.run(cfg, scale=scale)
     # Regenerate figures so they always match the current results.csv.
     figures.run(cfg)
 

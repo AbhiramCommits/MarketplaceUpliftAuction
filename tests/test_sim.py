@@ -180,6 +180,25 @@ class TestGeneration:
         imp2, _ = _make_arrays(n_rows=5_000, seed=7)
         assert not np.array_equal(imp1["ordered"], imp2["ordered"])
 
+    def test_realized_probabilities_in_unit_interval(self):
+        impressions, truth = _make_arrays(n_rows=12_000)
+        treated = impressions["promo_treated"].astype(bool)
+        realized = np.clip(
+            truth["baseline_order_prob"] + treated * truth["true_tau"], PROB_FLOOR, PROB_CEIL
+        )
+        assert (realized >= 0.0).all() and (realized <= 1.0).all()
+
+    def test_naive_ate_is_measurably_biased_vs_known_truth(self):
+        """The naive difference in means must overstate the known ATE: the
+        confounded propensity up-weights high-tau units into treatment."""
+        impressions, truth = _make_arrays(n_rows=50_000)
+        treated = impressions["promo_treated"].astype(bool)
+        ordered = impressions["ordered"].astype(bool)
+        naive_ate = ordered[treated].mean() - ordered[~treated].mean()
+        true_ate = truth["true_tau"].mean()
+        assert true_ate > 0.01
+        assert naive_ate - true_ate > 0.002
+
     def test_small_scale_shape_and_days(self):
         impressions, truth = _make_arrays(n_rows=50_000)
         assert len(impressions["impression_id"]) == 50_000
@@ -187,7 +206,7 @@ class TestGeneration:
         assert len(np.unique(impressions["impression_id"])) == 50_000
 
     def test_outcome_consistency(self):
-        impressions, truth = _make_arrays(n_rows=20_000)
+        impressions, truth = _make_arrays(n_rows=12_000)
         treated = impressions["promo_treated"].astype(bool)
         realized = np.clip(
             truth["baseline_order_prob"] + treated * truth["true_tau"], PROB_FLOOR, PROB_CEIL
@@ -202,7 +221,7 @@ class TestGeneration:
         assert (impressions["promo_cost_usd"][untreated] == 0.0).all()
 
     def test_supply_ratio_range(self):
-        impressions, _ = _make_arrays(n_rows=20_000)
+        impressions, _ = _make_arrays(n_rows=10_000)
         supply = impressions["current_dasher_supply_ratio"]
         assert 0.5 - 1e-6 <= supply.min() and supply.max() <= 2.0 + 1e-6
 

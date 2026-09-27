@@ -62,6 +62,19 @@ def _lgb_reg(seed: int, n: int = 150):
     )
 
 
+def _hgb_kwargs(cfg: dict[str, Any], seed: int) -> dict[str, Any]:
+    """HistGradientBoosting hyperparameters, configurable via estimators.*."""
+    return {
+        "max_iter": int(cfg["estimators"].get("hgb_max_iter", 200)),
+        "learning_rate": float(cfg["estimators"].get("hgb_learning_rate", 0.08)),
+        "min_samples_leaf": int(cfg["estimators"].get("hgb_min_samples_leaf", 20)),
+        "early_stopping": bool(cfg["estimators"].get("hgb_early_stopping", False)),
+        "validation_fraction": float(cfg["estimators"].get("hgb_validation_fraction", 0.1)),
+        "n_iter_no_change": int(cfg["estimators"].get("hgb_n_iter_no_change", 20)),
+        "random_state": seed,
+    }
+
+
 def _clf_factory(cfg: dict[str, Any], seed: int) -> Callable[[], Any]:
     # HistGradientBoosting is the default: LightGBM 4.x intermittently segfaults on
     # Apple Silicon (OpenMP thread race), so it is opt-in via `estimators.base`.
@@ -69,9 +82,7 @@ def _clf_factory(cfg: dict[str, Any], seed: int) -> Callable[[], Any]:
         return lambda: _lgb_clf(seed)
     from sklearn.ensemble import HistGradientBoostingClassifier
 
-    return lambda: HistGradientBoostingClassifier(
-        max_iter=200, learning_rate=0.08, random_state=seed
-    )
+    return lambda: HistGradientBoostingClassifier(**_hgb_kwargs(cfg, seed))
 
 
 def _reg_factory(cfg: dict[str, Any], seed: int) -> Callable[[], Any]:
@@ -79,9 +90,7 @@ def _reg_factory(cfg: dict[str, Any], seed: int) -> Callable[[], Any]:
         return lambda: _lgb_reg(seed)
     from sklearn.ensemble import HistGradientBoostingRegressor
 
-    return lambda: HistGradientBoostingRegressor(
-        max_iter=200, learning_rate=0.08, random_state=seed
-    )
+    return lambda: HistGradientBoostingRegressor(**_hgb_kwargs(cfg, seed))
 
 
 def _analytic_ci(cate: np.ndarray, alpha: float = 0.05) -> tuple[float, float, float]:

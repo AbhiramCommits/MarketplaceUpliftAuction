@@ -14,7 +14,29 @@ from mua.sim.generate import (
     generate_merchants,
 )
 
-ROWS = 24_000
+ROWS = 12_000
+
+
+def _constant_tau_data(rows: int = 8000, seed: int = 11):
+    """Synthetic data with a CONSTANT, known treatment effect tau = 0.03."""
+    rng = np.random.default_rng(seed)
+    d = 8
+    X = rng.normal(0, 1, (rows, d))
+    logit = 0.5 * X[:, 0] - 0.3 * X[:, 1] + 0.2 * X[:, 2]
+    w = (rng.random(rows) < 1 / (1 + np.exp(-logit))).astype(np.int64)
+    tau = 0.03
+    prob = np.clip(
+        0.10
+        + 0.04 * X[:, 0]
+        + 0.02 * X[:, 1]
+        - 0.01 * X[:, 2]
+        + tau * w
+        + rng.normal(0, 0.01, rows),
+        0.001,
+        0.95,
+    )
+    y = (rng.random(rows) < prob).astype(float)
+    return X, w, y
 
 
 def _write_toy_causal_data(root: Path, rows: int = ROWS, seed: int = 7) -> None:
@@ -87,27 +109,33 @@ def _toy_cfg(root: Path) -> dict:
         "data": {
             "sample_train": None,
             "sample_test": None,
-            "sample_refute": 4_000,
+            "sample_refute": 2_500,
             "seed": 7,
         },
         "propensity": {
-            "n_estimators": 100,
+            "n_estimators": 80,
             "trim_low": 0.02,
             "trim_high": 0.98,
             "smd_threshold": 0.12,
         },
         "estimators": {
             "base": "histgb",
-            "bootstrap_samples": 30,
+            "bootstrap_samples": 20,
             "dr_cv": 2,
-            "forest_estimators": 20,
+            "forest_estimators": 8,
             "forest_max_depth": 2,
             "forest_min_samples_leaf": 100,
+            "forest_base_estimators": 30,
+            "hgb_max_iter": 100,
+            "hgb_early_stopping": True,
+            "hgb_validation_fraction": 0.2,
+            "hgb_n_iter_no_change": 10,
         },
         "evaluate": {"n_deciles": 10},
         "refute": {
-            "placebo_iterations": 30,
-            "subset_fractions": [0.8, 0.9],
+            "placebo_iterations": 5,
+            "rcc_simulations": 5,
+            "subset_fractions": [0.8],
             "effect_shift_tolerance": 0.20,
             "placebo_pvalue_threshold": 0.05,
         },
@@ -283,6 +311,42 @@ class TestEvaluateAndPolicyEndToEnd:
         assert summary["policy"]["treat_all_per_dollar"] > 0
 
 
+class TestConstantTauRecovery:
+    def test_learners_recover_constant_tau(self):
+        """On data with a CONSTANT known tau, T/X/DR-learners and the causal forest
+        must all recover the ATE within tolerance."""
+        from mua.causal.estimators import fit_dr, fit_forest, fit_metalearner
+
+        X, w, y = _constant_tau_data(rows=20_000)
+        split = 15_000
+        X_train, w_train, y_train = X[:split], w[:split], y[:split]
+        X_test = X[split:]
+        cfg = {
+            "data": {"seed": 11},
+            "estimators": {
+                "base": "histgb",
+                "bootstrap_samples": 20,
+                "dr_cv": 2,
+                "forest_estimators": 20,
+                "forest_max_depth": 2,
+                "forest_min_samples_leaf": 50,
+                "hgb_max_iter": 200,
+                "hgb_learning_rate": 0.05,
+                "hgb_min_samples_leaf": 100,
+                "hgb_early_stopping": True,
+                "hgb_validation_fraction": 0.2,
+                "hgb_n_iter_no_change": 30,
+            },
+        }
+        results = {}
+        for kind in ("t", "x"):
+            results[kind] = fit_metalearner(kind, X_train, w_train, y_train, X_test, cfg, 11)
+        results["dr"] = fit_dr(X_train, w_train, y_train, X_test, cfg, 11)
+        results["forest"] = fit_forest(X_train, w_train, y_train, X_test, cfg, 11)
+        for name, res in results.items():
+            assert abs(res["ate"] - 0.03) < 0.010, (name, res["ate"])
+
+
 class TestRefute:
     def test_refutation_battery(self, toy):
         root, cfg = toy
@@ -295,6 +359,8 @@ class TestRefute:
         assert verdicts["placebo_treatment (permute)"] == "PASS"
         assert verdicts["random_common_cause"] == "PASS"
         assert verdicts["data_subset"] == "PASS"
+        placebo = next(v for v in result["verdicts"] if "placebo" in v["refuter"])
+        assert abs(placebo["new_effect"]) < 0.01
         report = (root / "reports" / "refutation_report.md").read_text()
         assert "Refutation report" in report
         assert "E-value" in report

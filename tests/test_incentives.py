@@ -10,9 +10,11 @@
 from __future__ import annotations
 
 import numpy as np
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from mua.auction.agents import BudgetPacedAgent, TruthfulAgent
-from mua.auction.mechanisms import VCG, FirstPrice, SecondPrice
+from mua.auction.mechanisms import MECHANISMS, VCG, FirstPrice, SecondPrice
 from mua.auction.types import Advertiser, AuctionRequest, Bid, Candidate
 
 DEVIATIONS = (0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.8, 2.5)
@@ -165,6 +167,94 @@ class TestFirstPriceShading:
         winner_surplus = _surplus(mechanism, candidates, both_shaded, "a0", 2.0, (1,))
         assert winner_surplus == (2.0 - 1.4) * pctr
         assert winner_surplus > 0.0
+
+
+class TestMechanismProperties:
+    """Property-based checks of the payment rules (hypothesis)."""
+
+    @st.composite
+    def auction_inputs(draw):
+        n = draw(st.integers(1, 8))
+        amounts = draw(
+            st.lists(
+                st.floats(0.1, 5.0, allow_nan=False, allow_infinity=False), min_size=n, max_size=n
+            )
+        )
+        pctrs = draw(
+            st.lists(
+                st.floats(0.005, 0.2, allow_nan=False, allow_infinity=False), min_size=n, max_size=n
+            )
+        )
+        reserve = draw(st.floats(0.0, 1.0, allow_nan=False, allow_infinity=False))
+        mechanism_name = draw(st.sampled_from(["first_price", "second_price", "gsp", "vcg"]))
+        if mechanism_name == "second_price":
+            slots = (1,)
+        else:
+            slots = draw(st.sampled_from([(1,), (1, 2), (1, 2, 3)]))
+        return mechanism_name, amounts, pctrs, reserve, slots
+
+    def _allocate(self, mechanism_name, amounts, pctrs, reserve, slots):
+        bids = [
+            Bid(
+                advertiser_id=f"a{i}",
+                merchant_id=i,
+                value=amounts[i],
+                amount=amounts[i],
+                pctr=pctrs[i],
+                organic_relevance=pctrs[i],
+            )
+            for i in range(len(amounts))
+        ]
+        request = AuctionRequest(
+            request_id=0,
+            candidates=tuple(
+                Candidate(merchant_id=b.merchant_id, pctr=b.pctr, organic_relevance=b.pctr)
+                for b in bids
+            ),
+            reserve=reserve,
+            slot_positions=slots,
+        )
+        outcome = MECHANISMS[mechanism_name]().allocate(request, bids)
+        return bids, request, outcome
+
+    @given(auction_inputs())
+    @settings(max_examples=200, deadline=None)
+    def test_payment_never_exceeds_bid(self, inp):
+        mechanism_name, amounts, pctrs, reserve, slots = inp
+        bids, _, outcome = self._allocate(mechanism_name, amounts, pctrs, reserve, slots)
+        bid_by_id = {b.advertiser_id: b.amount for b in bids}
+        for allocation in outcome.allocations:
+            assert allocation.payment <= bid_by_id[allocation.advertiser_id] + 1e-9
+
+    @given(auction_inputs())
+    @settings(max_examples=200, deadline=None)
+    def test_allocation_is_valid_permutation(self, inp):
+        mechanism_name, amounts, pctrs, reserve, slots = inp
+        bids, request, outcome = self._allocate(mechanism_name, amounts, pctrs, reserve, slots)
+        advertisers = [a.advertiser_id for a in outcome.allocations]
+        positions = [a.slot for a in outcome.allocations]
+        assert len(set(advertisers)) == len(advertisers)
+        assert len(set(positions)) == len(positions)
+        assert set(positions) <= set(request.slot_positions)
+        eligible = sorted(
+            (b for b in bids if b.amount >= reserve - 1e-12 and b.pctr > 0),
+            key=lambda b: (-b.amount * b.pctr, b.advertiser_id),
+        )
+        expected = [b.advertiser_id for b in eligible[: len(slots)]]
+        assert advertisers == expected
+        for allocation in outcome.allocations:
+            assert allocation.payment >= reserve - 1e-9
+
+    @given(auction_inputs())
+    @settings(max_examples=200, deadline=None)
+    def test_gsp_never_charges_more_than_own_bid(self, inp):
+        mechanism_name, amounts, pctrs, reserve, slots = inp
+        if mechanism_name != "gsp":
+            return
+        bids, _, outcome = self._allocate(mechanism_name, amounts, pctrs, reserve, slots)
+        bid_by_id = {b.advertiser_id: b.amount for b in bids}
+        for allocation in outcome.allocations:
+            assert allocation.payment <= bid_by_id[allocation.advertiser_id] + 1e-9
 
 
 class TestBudgetPacing:

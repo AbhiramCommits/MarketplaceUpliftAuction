@@ -296,6 +296,7 @@ class TestTrainAndScoreSmoke:
             "test_ece_after",
         ):
             assert key in summary, key
+        assert summary["test_ece_after"] < summary["test_ece_before"]
         assert ok in (True, False)
 
         predict_run(cfg)

@@ -157,7 +157,7 @@ def run(cfg: dict[str, Any]) -> dict[str, Any]:
         estimand,
         estimate,
         method_name="random_common_cause",
-        num_simulations=10,
+        num_simulations=int(rc.get("rcc_simulations", 10)),
     )
     rcc_effect = float(rcc.new_effect)
     rcc_shift = abs(rcc_effect - ate) / max(abs(ate), 1e-12)

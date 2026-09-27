@@ -145,7 +145,7 @@ class VCG(Mechanism):
         return [reserve] * len(winners)
 
 
-MECHANISMS = {
+MECHANISMS: dict[str, type[FirstPrice] | type[SecondPrice] | type[GSP] | type[VCG]] = {
     "first_price": FirstPrice,
     "second_price": SecondPrice,
     "gsp": GSP,

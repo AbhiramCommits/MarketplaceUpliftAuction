@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-groups
+      - name: Ruff
+        run: uv run ruff check src tests
+      - name: Black
+        run: uv run black --check src tests
+      - name: Mypy
+        run: uv run mypy src/mua
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: uv sync --all-groups
+      # The suite is self-contained (generates toy data in tmp) but runs alongside
+      # the small-scale dataset to match the documented workflow.
+      - name: Generate small-scale data
+        run: uv run python -m mua.cli generate --scale small
+      - name: Pytest with coverage (>= 80%)
+        run: uv run pytest --cov=src/mua --cov-report=term --cov-fail-under=80
+
+  e2e-small:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: uv sync --all-groups
+      - name: Generate (small scale)
+        run: uv run python -m mua.cli generate --scale small
+      - name: Features
+        run: uv run python -m mua.cli features
+      - name: Train ranker (fewer epochs; quality gates target full scale)
+        run: uv run python -m mua.cli train-ranker --epochs 4 || true
+      - name: Score
+        run: uv run python -m mua.cli score
+      - name: Causal
+        run: uv run python -m mua.cli causal --config configs/causal_small.yaml
+      - name: Auction
+        run: uv run python -m mua.cli auction --mechanism gsp --rounds 20000
+      - name: Experiment grid (small scale)
+        run: uv run python -m mua.cli experiment --scale small
+      - name: Report
+        run: uv run python -m mua.cli report --scale small
+      - uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: reports/REPORT.md

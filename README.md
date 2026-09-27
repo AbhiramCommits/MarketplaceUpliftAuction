@@ -1,123 +1,133 @@
 # marketplace-uplift-auction
 
-Simulated three-sided marketplace (consumers, merchants, dashers) with a confounded
-promo treatment and known ground-truth causal effects. Built to develop and score
-uplift models, rankers, and ad-auction policies against a known truth.
+An end-to-end experiment in **uplift modeling and ad auction design on a simulated
+three-sided delivery marketplace**. The simulator generates ~2M impressions across
+consumers, merchants, and dashers with a confounded promo treatment whose
+ground-truth causal effect is known by construction; a two-tower ranker produces
+position-debiased pCTR; causal estimators (T-/X-/DR-learners, causal forest, IPTW)
+are scored against the known truth and stress-tested with DoWhy refutations; and
+four auction mechanisms (first-price, second-price, GSP, VCG) allocate sponsored
+slots to bidding agents. Because the ground truth exists, every claim in this repo —
+confounding, calibration, incentive compatibility, targeting efficiency — is
+empirically checkable rather than assumed.
 
-## Requirements
-
-- Python 3.11
-- [uv](https://docs.astral.sh/uv/)
-- Java 17+ (for PySpark)
-
-## Quick start
-
-```sh
-make setup   # uv sync (creates .venv + uv.lock)
-make test    # pytest
-make lint    # ruff + black --check
-make data    # generate sim data + build features
-make all     # setup, lint, test, data, train, causal, auction, report
+```mermaid
+flowchart LR
+    A[sim/generate.py<br/>simulated marketplace<br/>+ ground-truth tau] --> B[features/build.py<br/>join + encode + time split]
+    B --> C[ranker/<br/>two-tower pCTR<br/>position-debiased]
+    C --> D[causal/<br/>T/X/DR + forest + IPTW<br/>scored vs truth]
+    C --> E[auction/<br/>FP / SP / GSP / VCG<br/>bidding agents]
+    D --> F[reporting/<br/>mechanism x targeting grid]
+    E --> F
+    F --> G[reports/REPORT.md]
+    D -.refutations.-> H[DoWhy: placebo, RCC,<br/>subset, E-value]
 ```
 
-## CLI
+## Quickstart
+
+Requirements: Python 3.11, [uv](https://docs.astral.sh/uv/), Java 17+ (for PySpark).
 
 ```sh
-uv run python -m mua.cli generate --scale small   # 50k-row CI run
-uv run python -m mua.cli generate                 # full ~2M rows (seed 42)
-uv run python -m mua.cli features                 # join, encode, time-split
-uv run python -m mua.cli train-ranker             # train + calibrate the CTR ranker
-uv run python -m mua.cli score                    # batch-score splits -> data/scored/
-uv run python -m mua.cli causal --estimator all   # causal pipeline + ground-truth eval
-uv run python -m mua.cli refute                   # DoWhy refutation battery
-uv run python -m mua.cli auction --mechanism gsp --rounds 200000   # ads auction sim
+make setup        # uv sync (pinned uv.lock)
+make all          # lint + test + full pipeline (~20 min): reproduces every number below
 ```
 
-## CTR ranker
+**Five-minute path** (small scale, 50k impressions — see `notebooks/walkthrough.ipynb`
+for the same steps as a notebook):
 
-`src/mua/ranker/` implements the pCTR model that feeds the auction layer
-(eCPM = bid * pCTR):
+```sh
+make setup
+uv run python -m mua.cli generate --scale small
+uv run python -m mua.cli features
+uv run python -m mua.cli train-ranker --epochs 4
+uv run python -m mua.cli score
+uv run python -m mua.cli causal --config configs/causal_small.yaml
+uv run python -m mua.cli auction --mechanism gsp --rounds 20000
+uv run python -m mua.cli experiment --scale small
+uv run python -m mua.cli report --scale small   # -> reports/REPORT.md
+```
 
-- `dataset.py` - PyTorch dataset over processed Parquet via pyarrow; in-memory and
-  chunked (row-group cached) modes.
-- `model.py` - two-tower CTR model: embeddings (consumer/merchant ids hashed to
-  2^16/2^13 buckets, cuisine, hour, day_of_week, price_tier) + z-scored numerics ->
-  MLP [256, 128, 64] (ReLU, dropout 0.2, BatchNorm) -> sigmoid. `slate_rank` feeds a
-  separate position-bias tower that is trained but zeroed at inference.
-- `train.py` - BCE + AdamW + cosine LR + early stopping on validation log-loss +
-  gradient clipping; logs metrics to CSV and MLflow (`artifacts/mlruns`), saves the
-  best checkpoint + feature spec to `artifacts/ranker/`.
-- `calibrate.py` - isotonic regression fit on the validation split; reports ECE
-  (10 decile bins) before/after and saves a reliability diagram to
-  `reports/figures/calibration.png`.
-- `predict.py` - batch scoring; writes `pctr_raw` + calibrated `pctr` columns to
-  `data/scored/{train,valid,test}/`.
+Everything is seeded (42); `make all` reproduces every headline number in this
+README from a clean clone. Tests are self-contained (they generate their own small
+datasets in tmp) and finish in under 3 minutes.
 
-Quality targets (checked and printed in the run summary): test ROC-AUC >= 0.70,
-post-calibration test ECE <= 0.02.
+## Headline results (full run, seed 42)
 
-## Causal inference
+| Stage | Metric | Value |
+|---|---|---|
+| Sim | treated share / mean true tau | 35.0% / 0.0237 |
+| Ranker | test ROC-AUC / post-calibration ECE | 0.7160 / 0.0014 |
+| Causal | ground-truth ATE | 0.0242 |
+| Causal | naive ATE (biased baseline) | 0.0308 (+0.0065) |
+| Causal | IPTW / DR / forest ATE | 0.0238 / 0.0244 / 0.0245 |
+| Causal | best PEHE (X-learner) / best Qini (forest) | 0.0157 / 0.5295 |
+| Refutations | placebo p / RCC shift / E-value | 0.9776 / 0.0000 / 2.160 |
+| Auction (200k rounds) | revenue: FP / GSP / SP / VCG | 65.6k / 27.5k / 17.8k / 13.8k |
+| Experiment | uplift-top-k orders per promo dollar | **0.0529** vs 0.0242 treat-all |
+| Experiment | max revenue (FP) / max surplus (VCG) | 6809.8 / 3901.5 |
 
-`src/mua/causal/` estimates the incremental order rate of the promo and proves the
-estimate survives confounding checks. `data/truth/` is used only for evaluation.
+## Methods
 
-- `propensity.py` - gradient-boosted propensity model: AUC, overlap histogram,
-  [0.02, 0.98] trimming, SMD for every covariate before/after IPTW, Love plot.
-  Fails loudly if any post-weighting |SMD| >= 0.1.
-- `estimators.py` - naive diff-in-means, stabilized IPTW, S/T/X-learners, DRLearner,
-  and honest CausalForestDML, each with ATE + 95% CI and per-unit CATE. SHAP summary
-  for the T-learner.
-- `evaluate.py` - ATE bias + CI coverage, PEHE vs `true_tau`, Qini/AUUC, uplift-by-
-  decile tables, `reports/figures/qini.png` + `uplift_deciles.png`, leaderboard
-  (`reports/leaderboard.md` + CSV).
-- `refute.py` - DoWhy DAG (saved as DOT), backdoor estimate, placebo / random common
-  cause / data-subset refuters with pass/fail verdicts, E-value sensitivity ->
-  `reports/refutation_report.md`.
-- `policy.py` - top-k% targeting curve (incremental orders per promo dollar) vs
-  random and treat-everyone baselines -> `reports/figures/policy_curve.png`.
+- **Simulation**: confounded logistic propensity (calibrated to 35% treated, never a
+  coin flip); heterogeneous `true_tau` (positive for price-sensitive new users,
+  negative for loyal low-sensitivity users on cheap merchants); ground truth kept in
+  a separate `data/truth/` dataset that model code cannot read.
+- **Ranker**: two-tower deep model (hashed-ID embeddings + z-scored numerics ->
+  MLP [256,128,64]) with a separate position-bias tower trained but zeroed at
+  inference; isotonic calibration (ECE <= 0.02 enforced).
+- **Causal**: naive diff-in-means, IPTW with GBM propensity + SMD balance checks,
+  S-/T-/X-learners, DRLearner, honest CausalForestDML; evaluation vs ground truth
+  with ATE bias, CI coverage, PEHE, Qini/AUUC; DoWhy placebo / random-common-cause /
+  data-subset refutations plus E-value sensitivity.
+- **Auction**: eCPM ranking with reserve price and an ads-load cap (<= 3 sponsored
+  slots in a 20-item slate); first-price with multiplicative-weights bid shading,
+  budget pacing via a dual-variable λ (spend within ±5% of budget), and
+  property-based checks that payments never exceed bids and allocations are valid.
 
-## Ads auction
+## Interpreting the results
 
-`src/mua/auction/` allocates sponsored slots on the merchant slate using the
-calibrated pCTR from the ranker:
+- **The confounding is real and the estimators fix it.** The naive estimator
+  overshoots the true ATE (0.0242) by +0.0065 because high-tau units are
+  over-represented in treatment; IPTW, DR, and the causal forest all land within
+  ±0.001 of truth, and every DoWhy refutation passes.
+- **Targeting beats reach.** Ranking sessions by predicted CATE and promoting the
+  top 20% yields 0.0529 incremental orders per promo dollar — more than double
+  treat-everyone (0.0242) and better than propensity targeting (0.0493). The
+  mechanism choice barely moves promo efficiency; the targeting policy does.
+- **Revenue and surplus are a menu, not a free lunch.** First-price extracts the
+  most platform revenue (shading agents keep surplus thin); VCG leaves the most
+  advertiser surplus and is incentive-compatible by construction; GSP sits in
+  between as the practical default.
 
-- `types.py` - `Bid`, `Advertiser`, `AuctionRequest`, `Allocation`, `AuctionOutcome`
-- `mechanisms.py` - FirstPrice, SecondPrice (Vickrey), GSP (quality-adjusted
-  next-price), VCG (externality payments); eCPM ranking, reserve price, configurable
-  sponsored slots (max 3 of 20)
-- `agents.py` - Truthful, Shading (multiplicative-weights for first-price),
-  BudgetPaced (dual-variable lambda throttling toward daily budget), Random
-- `simulator.py` - N rounds sampled from the scored test log; tracks per-advertiser
-  spend/utilization/clicks/conversions/surplus and platform revenue/RPM/fill
-  rate/ads position/organic displacement; per-round outcomes -> 
-  `data/auction_runs/<run_id>/`
+## Limitations
 
-Incentive properties are verified empirically in `tests/test_incentives.py`:
-truthful bidding is dominant in second-price/VCG (deviation grid), and truthful
-bidding is provably beatable in first-price by shading.
+- Everything runs on **simulated data with a known generative model**; results do
+  not transfer to any real marketplace.
+- **No interference or spillover**: consumers are independent, the promo decision
+  does not feed back into the auction, and advertisers follow fixed behavioral
+  rules rather than strategic equilibria.
+- The auction model is position-free (no slot-specific CTR multipliers), and the
+  outcome models are linear-probability-style simplifications.
+- Refutation verdicts are necessary, not sufficient, evidence for identification.
 
-## Data layout
+See `docs/METHODOLOGY.md` for the full research note and `reports/REPORT.md` for the
+complete experiment report. Cite via `CITATION.cff`; MIT licensed.
 
-| Path | Contents |
-| --- | --- |
-| `data/raw/impressions/` | Impression-level event log, Parquet partitioned by `day` |
-| `data/raw/{consumers,merchants,dashers}/` | Entity dimension tables (Parquet) |
-| `data/truth/` | Ground truth keyed by `impression_id`: `true_propensity`, `true_tau`, `baseline_order_prob` |
-| `data/processed/{train,valid,test}/` | Joined + encoded features, split by time (days 1-21 / 22-25 / 26-30) |
+## Layout
 
-`data/` and `artifacts/` are gitignored. Reports go in `reports/`.
+```
+src/mua/
+  sim/        data generator with known ground truth
+  features/   join, encode, time-based splits
+  ranker/     two-tower pCTR model + training + calibration + scoring
+  causal/     propensity, ATE/CATE estimators, evaluation, DoWhy refutations, policy
+  auction/    mechanisms, bidding agents, simulator
+  reporting/  experiment grid, figures, REPORT.md
+configs/      YAML for every stage (causal_small.yaml = 5-minute path)
+notebooks/    walkthrough.ipynb (reproduces the pipeline at small scale)
+tests/        82 tests, ~95% coverage, < 3 minutes
+```
 
-## Treatment & outcomes
-
-`promo_treated` is assigned by a confounded logistic propensity that depends on
-`price_sensitivity`, `is_new_user`, merchant `historical_ctr`, and `is_peak`
-(calibrated to ~35% treated, never a coin flip). Outcomes come from explicit
-structural models in `src/mua/sim/generate.py`:
-
-- `baseline_order_prob(features)` - untreated conversion probability
-- `true_tau(features)` - heterogeneous individual treatment effect (strongly positive
-  for price-sensitive new users facing slow delivery; negative for loyal,
-  low-sensitivity users on cheap merchants)
-- realized `ordered ~ Bernoulli(clip(baseline + treated * tau, 0.001, 0.95))`
-
-Ground-truth columns are written only to `data/truth/` so model code cannot leak them.
+CI (`.github/workflows/ci.yml`) runs ruff + black + mypy, pytest with a >= 80%
+coverage gate, and a full small-scale end-to-end job that uploads
+`reports/REPORT.md` as an artifact.

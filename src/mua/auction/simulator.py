@@ -230,11 +230,11 @@ def run(cfg: dict[str, Any]) -> dict[str, Any]:
             if clicks_by_agent[allocation.advertiser_id]:
                 revenue_realized += allocation.payment
         for bid in bids:
-            allocation = winners_by_agent.get(bid.advertiser_id)
-            if allocation is None:
+            won_allocation = winners_by_agent.get(bid.advertiser_id)
+            if won_allocation is None:
                 agents[bid.merchant_id].observe(None, False)
             else:
-                agents[bid.merchant_id].observe(allocation, clicks_by_agent[bid.advertiser_id])
+                agents[bid.merchant_id].observe(won_allocation, clicks_by_agent[bid.advertiser_id])
             agents[bid.merchant_id].tick(t, rounds)
 
         columns["request_id"].append(t)
